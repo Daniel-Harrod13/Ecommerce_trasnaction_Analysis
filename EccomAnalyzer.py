@@ -35,8 +35,8 @@ class EcommerceAnalyzer:
             'Total_Amount': 'sum',
             'TransactionNo': 'nunique'
         }).reset_index()
-        monthly_sales['Month_Year'] = monthly_sales['Month_Year'].astype(str)
         
+        monthly_sales['Month_Year'] = monthly_sales['Month_Year'].astype(str)
         return monthly_sales
     
     def analyze_product_popularity(self, top_n=10):
@@ -68,12 +68,11 @@ class EcommerceAnalyzer:
         """Segment customers based on RFM analysis with geographical consideration."""
         current_date = self.df['Date'].max()
         
-        # Calculate RFM metrics
         rfm = self.df.groupby('CustomerNo').agg({
             'Date': lambda x: (current_date - x.max()).days,  # Recency
             'TransactionNo': 'nunique',  # Frequency
             'Total_Amount': 'sum',  # Monetary
-            'Country': lambda x: x.mode()[0]  # Most common country
+            'Country': lambda x: x.mode().iloc[0]  # Most common country
         }).reset_index()
         
         rfm.columns = ['CustomerNo', 'Recency', 'Frequency', 'Monetary', 'PrimaryCountry']
@@ -104,25 +103,31 @@ class EcommerceAnalyzer:
         # Sales trend visualization
         monthly_sales = self.analyze_sales_trends()
         plt.figure(figsize=(12, 6))
-        sns.lineplot(data=monthly_sales, x='Month_Year', y='Total_Amount', hue='Country')
+        for country in monthly_sales['Country'].unique():
+            country_data = monthly_sales[monthly_sales['Country'] == country]
+            plt.plot(country_data['Month_Year'], 
+                    country_data['Total_Amount'], 
+                    label=country)
         plt.title('Monthly Sales Trend by Country')
+        plt.legend()
         plt.xticks(rotation=45)
         plt.tight_layout()
         
         # Product popularity visualization
         top_products = self.analyze_product_popularity()
         plt.figure(figsize=(12, 6))
-        sns.barplot(data=top_products, x='Total_Amount', y='ProductName')
+        plt.barh(top_products['ProductName'], top_products['Total_Amount'])
         plt.title('Top 10 Products by Revenue')
         plt.tight_layout()
         
         # Geographic distribution
         geo_analysis = self.analyze_geographic_distribution()
         plt.figure(figsize=(10, 6))
-        sns.barplot(data=geo_analysis, x='Country', y='Total_Amount')
+        plt.bar(geo_analysis['Country'], geo_analysis['Total_Amount'])
         plt.title('Sales Distribution by Country')
         plt.xticks(rotation=45)
         plt.tight_layout()
+        plt.show()
     
     def generate_report(self):
         """Generate a comprehensive analysis report."""
@@ -138,29 +143,37 @@ class EcommerceAnalyzer:
 
 # Example usage
 if __name__ == "__main__":
-    # Initialize analyzer
-    analyzer = EcommerceAnalyzer('/Users/danielharrod/Ecommerce_transaction_Analysis/data/Sales_Transaction_Cleaned.csv')
-    
-    # Generate comprehensive report
-    report = analyzer.generate_report()
-    
-    # Generate visualizations
-    analyzer.generate_visualizations()
-    
-    # Print key insights
-    print("=== E-commerce Analysis Results ===")
-    print("\nTop 5 Products by Revenue:")
-    print(report['top_products'][['ProductName', 'Total_Amount', 'Quantity']].head())
-    
-    print(f"\nAverage Products per Transaction: {report['purchase_behavior']['avg_items']:.2f}")
-    print(f"Average Transaction Amount: ${report['purchase_behavior']['avg_amount']:.2f}")
-    
-    print("\nSales by Country:")
-    print(report['geographic_analysis'][['Country', 'Total_Amount', 'CustomerNo']].sort_values('Total_Amount', ascending=False))
-    
-    print("\nCustomer Segments Summary:")
-    print(report['customer_segments'].groupby(['Segment', 'PrimaryCountry']).agg({
-        'Monetary': 'mean',
-        'Frequency': 'mean',
-        'Recency': 'mean'
-    }).round(2))
+    try:
+        # Initialize analyzer
+        analyzer = EcommerceAnalyzer('/Users/danielharrod/Ecommerce_transaction_Analysis/data/Sales_Transaction_Cleaned.csv')
+        
+        # Generate comprehensive report
+        report = analyzer.generate_report()
+        
+        # Generate visualizations
+        analyzer.generate_visualizations()
+        
+        # Print key insights
+        print("=== E-commerce Analysis Results ===")
+        print("\nTop 5 Products by Revenue:")
+        print(report['top_products'][['ProductName', 'Total_Amount', 'Quantity']].head())
+        
+        print(f"\nAverage Products per Transaction: {report['purchase_behavior']['avg_items']:.2f}")
+        print(f"Average Transaction Amount: ${report['purchase_behavior']['avg_amount']:.2f}")
+        
+        print("\nSales by Country:")
+        print(report['geographic_analysis'][['Country', 'Total_Amount', 'CustomerNo']]
+              .sort_values('Total_Amount', ascending=False))
+        
+        print("\nCustomer Segments Summary:")
+        segment_summary = report['customer_segments'].groupby(['Segment', 'PrimaryCountry']).agg({
+            'Monetary': 'mean',
+            'Frequency': 'mean',
+            'Recency': 'mean'
+        }).round(2)
+        print(segment_summary)
+        
+    except FileNotFoundError:
+        print("Error: Data file not found. Please check the file path.")
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
